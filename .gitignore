@@ -49,7 +49,8 @@ Icon
 .Spotlight-V100
 .Trashes
 
-tdash
+lastseen-cli
+lastseen-cli-go
 cross/
 
 # Go coverage results
