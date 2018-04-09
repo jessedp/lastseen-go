@@ -12,13 +12,15 @@ import (
     "github.com/manifoldco/promptui"
     "github.com/sirupsen/logrus"
     "github.com/godbus/dbus"
-
+    "lastseen-cli/version"
 )
 
 const (
     //console output stuff
+
+    // SEP is a separator
     SEP = "-------------------------------------------------------------------\n"
-    
+
     // BANNER is what is printed for help/info output
     BANNER = `
  __     __   ____  ____  ____  ____  ____  __ _ 
@@ -31,6 +33,7 @@ An update client for LastSeen.
 Version: %s
 Build: %s
 `
+    // USAGE is the list of valid args available
     USAGE = `
 valid arguments:
     config    - setup the client for use. Running this will re-run the entire login process and overwrite any previous
@@ -43,16 +46,17 @@ valid arguments:
                 Not a horrible idea to use it in a startup script.
 `
 )
+
 type loginReq struct {
-    Email string `json:"email"`
+    Email    string `json:"email"`
     Password string `json:"password"`
 }
 
 type loginResponse struct {
-    Error string `json:"error"`
+    Error       string `json:"error"`
     AccessToken string `json:"access_token"`
-    TokenType string `json:"token_type"`
-    ExpiresIn int64 `json:"expires_in"`
+    TokenType   string `json:"token_type"`
+    ExpiresIn   int64  `json:"expires_in"`
 }
 
 type pingReq struct {
@@ -61,43 +65,42 @@ type pingReq struct {
 
 var log = logrus.New()
 
-
 func main() {
     args := os.Args[1:]
-    if (len(args)!=1){
+    if (len(args) != 1) {
         printUsage("Exactly 1 argument should be passed.")
     }
-    validArgs := map[string]bool {
+    validArgs := map[string]bool{
         "config": true,
-        "run": true,
+        "run":    true,
         "daemon": true,
     }
     theArg := args[0]
-    if !validArgs[theArg]{
+    if !validArgs[theArg] {
         printUsage(fmt.Sprintf("%s is not a valid parameter.", theArg))
     } else {
         log.Out = os.Stdout
         switch theArg {
-            case "config":
-                checkConfig(true)
-            case "run":
-                runUpdate()
-            case "daemon":
-                runDaemon()
+        case "config":
+            checkConfig(true)
+        case "run":
+            runUpdate()
+        case "daemon":
+            runDaemon()
         }
     }
-    
+
 }
 
-func printUsage(err string){
-    fmt.Print(BANNER)
+func printUsage(err string) {
+    fmt.Printf(BANNER, version.VERSION, version.GITCOMMIT)
     fmt.Print(SEP)
     fmt.Println(err)
     fmt.Print(USAGE)
     os.Exit(1)
 }
 
-func writeConfig(resp *http.Response){
+func writeConfig(resp *http.Response) {
     dataraw, err := ioutil.ReadAll(resp.Body)
     var data loginResponse
     err = json.Unmarshal(dataraw, &data)
@@ -118,7 +121,7 @@ func writeConfig(resp *http.Response){
 func createConfig() {
     log.Infoln("No config found! Let's create one...")
     prompt := promptui.Prompt{
-        Label:    "Email",
+        Label: "Email",
     }
 
     email, err := prompt.Run()
@@ -131,7 +134,7 @@ func createConfig() {
 
     pass, err := prompt.Run()
     checkErr(err)
-    
+
     client := &http.Client{}
     postStruct := loginReq{email, pass}
     postData, err := json.Marshal(postStruct)
@@ -177,7 +180,7 @@ func runUpdate() {
     postStruct := pingReq{cfg.AccessToken}
     postData, err := json.Marshal(postStruct)
     checkErr(err)
-//    fmt.Println(bytes.NewBuffer(postData))
+    //    fmt.Println(bytes.NewBuffer(postData))
     req, err := http.NewRequest("POST", "https://lastseen.me/api/ping", bytes.NewBuffer(postData))
     req.Header.Add("content-type", `application/json"`)
     req.Header.Add("Accept", `application/json"`)
@@ -186,12 +189,23 @@ func runUpdate() {
     resp, err := client.Do(req)
 
     writeConfig(resp)
+    conn, err := dbus.SessionBus()
+    if err != nil {
+        panic(err)
+    }
+    obj := conn.Object("org.freedesktop.Notifications", "/org/freedesktop/Notifications")
+    call := obj.Call("org.freedesktop.Notifications.Notify", 0, "", uint32(0),
+        "", "LastSeen", "updated LastSeen!", []string{},
+        map[string]dbus.Variant{}, int32(5000))
+    if call.Err != nil {
+        panic(call.Err)
+    }
     log.Info("updated lastseen")
 
 }
 
 func runDaemon() {
-    
+
     logfile, err := homedir.Expand("~/.lastseen/lastseen_go.log")
     file, err := os.OpenFile(logfile, os.O_CREATE|os.O_WRONLY, 0666)
     if err == nil {
@@ -221,12 +235,11 @@ func runDaemon() {
     for v := range c {
         //&{:1.23 /org/gnome/ScreenSaver org.gnome.ScreenSaver.ActiveChanged [true]}
         //fmt.Println(v)
-        if (v.Body[0] == true){
+        if (v.Body[0] == true) {
             log.Info("screen unlocked, running")
             runUpdate()
         }
     }
-
 
 }
 
