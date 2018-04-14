@@ -17,6 +17,7 @@ install:
 - go get github.com/manifoldco/promptui
 - go get github.com/sirupsen/logrus
 - go get github.com/godbus/dbus
+- go get github.com/jessedp/lastseen-go/version
 - go get github.com/golang/lint/golint
 - go get honnef.co/go/tools/cmd/staticcheck
 script:
