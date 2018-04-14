@@ -67,7 +67,7 @@ var log = logrus.New()
 
 func main() {
     args := os.Args[1:]
-    if (len(args) != 1) {
+    if len(args) != 1 {
         printUsage("Exactly 1 argument should be passed.")
     }
     validArgs := map[string]bool{
@@ -105,7 +105,7 @@ func writeConfig(resp *http.Response) {
     var data loginResponse
     err = json.Unmarshal(dataraw, &data)
     checkErr(err)
-    if (resp.StatusCode == 200) {
+    if resp.StatusCode == 200 {
         cfgfile, err := homedir.Expand("~/.lastseen/config")
         f, err := os.Create(cfgfile)
         checkErr(err)
@@ -113,7 +113,7 @@ func writeConfig(resp *http.Response) {
         _, err = f.Write(dataraw)
         checkErr(err)
     } else {
-        log.Errorln(SEP + "That didn't work, the server said: " + data.Error)
+        log.Errorln("That didn't work, the server said: " + data.Error)
         createConfig()
     }
 
@@ -162,7 +162,7 @@ func checkConfig(create bool) (loginResponse, error) {
     } else if err != nil {
         checkErr(err)
     } else {
-        if (create) {
+        if create {
             log.Info("Config appears valid! Try using 'run' to make sure it works")
         }
     }
@@ -189,16 +189,16 @@ func runUpdate() {
     resp, err := client.Do(req)
 
     writeConfig(resp)
+    //let's try to send a notification
     conn, err := dbus.SessionBus()
-    if err != nil {
-        panic(err)
-    }
-    obj := conn.Object("org.freedesktop.Notifications", "/org/freedesktop/Notifications")
-    call := obj.Call("org.freedesktop.Notifications.Notify", 0, "", uint32(0),
-        "", "LastSeen", "updated LastSeen!", []string{},
-        map[string]dbus.Variant{}, int32(5000))
-    if call.Err != nil {
-        panic(call.Err)
+    if err == nil {
+        obj := conn.Object("org.freedesktop.Notifications", "/org/freedesktop/Notifications")
+        call := obj.Call("org.freedesktop.Notifications.Notify", 0, "", uint32(0),
+            "", "LastSeen", "updated LastSeen!", []string{},
+            map[string]dbus.Variant{}, int32(5000))
+        if call.Err != nil {
+            panic(call.Err)
+        }
     }
     log.Info("updated lastseen")
 
@@ -208,6 +208,7 @@ func runDaemon() {
 
     logfile, err := homedir.Expand("~/.lastseen/lastseen_go.log")
     file, err := os.OpenFile(logfile, os.O_CREATE|os.O_WRONLY, 0666)
+    defer file.Close()
     if err == nil {
         log.Out = file
     } else {
@@ -221,6 +222,7 @@ func runDaemon() {
     conn, err := dbus.SessionBus()
     if err != nil {
         log.Errorf("Failed to connect to session bus: %s", err)
+        log.Errorln("DBus Session is likely not supported without a GUI")
         os.Exit(1)
     }
     runUpdate()
@@ -235,7 +237,7 @@ func runDaemon() {
     for v := range c {
         //&{:1.23 /org/gnome/ScreenSaver org.gnome.ScreenSaver.ActiveChanged [true]}
         //fmt.Println(v)
-        if (v.Body[0] == true) {
+        if v.Body[0] == true {
             log.Info("screen unlocked, running")
             runUpdate()
         }
