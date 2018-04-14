@@ -12,7 +12,7 @@ import (
     "github.com/manifoldco/promptui"
     "github.com/sirupsen/logrus"
     "github.com/godbus/dbus"
-    "lastseen-cli/version"
+    "github.com/jessedp/lastseen-go/version"
 )
 
 const (
