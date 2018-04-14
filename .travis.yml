@@ -26,8 +26,8 @@
     - make cover
     - make release
 
-  after_success:
-    - bash <(curl -s https://codecov.io/bash)
+#  after_success:
+#    - bash <(curl -s https://codecov.io/bash)
 
   deploy:
     provider: releases
