@@ -3,7 +3,8 @@ PREFIX?=$(shell pwd)
 
 # Setup name variables for the package/tool
 NAME := lastseen-cli
-PKG := github.com/jessedp/$(NAME)
+PKG := gitlab.com/jessedp/$(NAME)
+#PKG :=
 
 # Set any default go build tags
 BUILDTAGS :=
@@ -15,16 +16,22 @@ BUILDDIR := ${PREFIX}/cross
 # Add to compile time flags
 VERSION := $(shell cat VERSION.txt)
 GITCOMMIT := $(shell git rev-parse --short HEAD)
+
 GITUNTRACKEDCHANGES := $(shell git status --porcelain --untracked-files=no)
 ifneq ($(GITUNTRACKEDCHANGES),)
 	GITCOMMIT := $(GITCOMMIT)-dirty
 endif
 CTIMEVAR=-X $(PKG)/version.GITCOMMIT=$(GITCOMMIT) -X $(PKG)/version.VERSION=$(VERSION)
+#CTIMEVAR=-X $./version.GITCOMMIT=$(GITCOMMIT) -X ./version.VERSION=$(VERSION)
 GO_LDFLAGS=-ldflags "-w $(CTIMEVAR)"
 GO_LDFLAGS_STATIC=-ldflags "-w $(CTIMEVAR) -extldflags -static"
 
 # List the GOOS and GOARCH to build
-GOOSARCHES = darwin/amd64 darwin/386 freebsd/amd64 freebsd/386 linux/arm linux/arm64 linux/amd64 linux/386
+GOOSARCHES = linux/arm linux/arm64 linux/amd64 linux/386
+# * darwin doesn't do dbus out of the box
+# 		darwin/amd64 darwin/386
+# *unixTransport does not implement transport (missing SendNullByte method)
+#      freebsd/amd64 freebsd/386
 #windows/amd64 windows/386
 
 .PHONY: build
@@ -41,6 +48,7 @@ static: ## Builds a static executable
 				-tags "$(BUILDTAGS) static_build" \
 				${GO_LDFLAGS_STATIC} -o $(NAME) .
 
+#all: clean build fmt lint test staticcheck vet install ## Runs a clean, build, fmt, lint, test, staticcheck, vet and install
 all: clean build fmt lint test staticcheck vet install ## Runs a clean, build, fmt, lint, test, staticcheck, vet and install
 
 .PHONY: fmt
@@ -104,6 +112,7 @@ GOOS=$(1) GOARCH=$(2) CGO_ENABLED=0 go build \
 	 -o $(BUILDDIR)/$(NAME)-$(1)-$(2) \
 	 -a -tags "$(BUILDTAGS) static_build netgo" \
 	 -installsuffix netgo ${GO_LDFLAGS_STATIC} .;
+upx $(BUILDDIR)/$(NAME)-$(1)-$(2);
 md5sum $(BUILDDIR)/$(NAME)-$(1)-$(2) > $(BUILDDIR)/$(NAME)-$(1)-$(2).md5;
 sha256sum $(BUILDDIR)/$(NAME)-$(1)-$(2) > $(BUILDDIR)/$(NAME)-$(1)-$(2).sha256;
 endef
