@@ -53,6 +53,10 @@ lastseen-cli
 lastseen-cli-go
 cross/
 
+# repo swaps
+prv-repo.sh
+pub-repo.sh
+
 # Go coverage results
 coverage.txt
 profile.out
