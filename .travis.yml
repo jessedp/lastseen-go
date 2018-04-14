@@ -9,7 +9,10 @@ matrix:
   allow_failures:
   - go: tip
   fast_finish: true
+
 install:
+- sudo apt-get update -qq
+- sudo apt-get install upx
 - go get github.com/golang/lint/golint
 - go get honnef.co/go/tools/cmd/staticcheck
 script:
