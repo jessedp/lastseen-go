@@ -29,13 +29,15 @@ An update client for LastSeen.
 Exactly 1 argument should be passed.
 
 valid arguments:
-    config    - setup the client for use. Running this will re-run the entire login process and overwrite any previous
-                config.
-    run       - run the client once. This will check for an existing config file and prompt for one until it exists.
+    config    - setup the client for use. Running this will re-run the entire login process and overwrite any
+                previous config.
+    run       - run the client once. This will check for an existing config file and prompt for one until it
+                exists.
                 Ctrl+C will get you out.
 
     service/daemon options:
-    daemon    - once you're happy with the config, use this to launch a daemon that you don't have to worry about.
+    daemon    - once you're happy with the config, use this to launch a daemon that you don't have to worry
+                about.
                 Not a horrible idea to use it in a startup script.
 ```
 
