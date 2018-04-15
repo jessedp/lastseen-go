@@ -102,13 +102,11 @@ func printUsage(err string) {
 
 func writeConfig(resp *http.Response) {
     dataraw, err := ioutil.ReadAll(resp.Body)
-    checkErr(err)
     var data loginResponse
     err = json.Unmarshal(dataraw, &data)
     checkErr(err)
     if resp.StatusCode == 200 {
         cfgfile, err := homedir.Expand("~/.lastseen/config")
-        checkErr(err)
         f, err := os.Create(cfgfile)
         checkErr(err)
         defer f.Close()
@@ -143,13 +141,11 @@ func createConfig() {
     checkErr(err)
     //fmt.Println(bytes.NewBuffer(postData))
     req, err := http.NewRequest("POST", "https://lastseen.me/api/auth/login", bytes.NewBuffer(postData))
-    checkErr(err)
     req.Header.Add("content-type", `application/json"`)
     req.Header.Add("Accept", `application/json"`)
     defer req.Body.Close()
 
     resp, err := client.Do(req)
-    checkErr(err)
     writeConfig(resp)
 }
 
@@ -158,7 +154,6 @@ func checkConfig(create bool) (loginResponse, error) {
     checkErr(err)
 
     data, err := os.Open(cfgfile)
-    checkErr(err)
     var cfg loginResponse
     err = json.NewDecoder(data).Decode(&cfg)
 
@@ -187,13 +182,12 @@ func runUpdate() {
     checkErr(err)
     //    fmt.Println(bytes.NewBuffer(postData))
     req, err := http.NewRequest("POST", "https://lastseen.me/api/ping", bytes.NewBuffer(postData))
-    checkErr(err)
     req.Header.Add("content-type", `application/json"`)
     req.Header.Add("Accept", `application/json"`)
     defer req.Body.Close()
 
     resp, err := client.Do(req)
-    checkErr(err)
+
     writeConfig(resp)
     //let's try to send a notification
     conn, err := dbus.SessionBus()
@@ -213,14 +207,8 @@ func runUpdate() {
 func runDaemon() {
 
     logfile, err := homedir.Expand("~/.lastseen/lastseen_go.log")
-    checkErr(err)
     file, err := os.OpenFile(logfile, os.O_CREATE|os.O_WRONLY, 0666)
-    defer func() {
-        err = file.Close()
-        checkErr(err)
-    }()
-
-    checkErr(err)
+    defer file.Close()
     if err == nil {
         log.Out = file
     } else {
