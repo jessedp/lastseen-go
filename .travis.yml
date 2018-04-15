@@ -48,4 +48,4 @@
       - cross/lastseen-cli-linux-amd64.sha256
     skip_cleanup: true
     on:
-      repo: jessedp/lastseen-go
+      tags: true
