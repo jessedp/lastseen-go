@@ -20,6 +20,8 @@
     - go get github.com/jessedp/lastseen-go/version
     - go get github.com/golang/lint/golint
     - go get honnef.co/go/tools/cmd/staticcheck
+    - go get gopkg.in/yaml.v1
+    - go get gopkg.in/natefinch/lumberjack.v2
 
   script:
     - make all
