@@ -13,6 +13,8 @@ import (
     "github.com/sirupsen/logrus"
     "github.com/godbus/dbus"
     "github.com/jessedp/lastseen-go/version"
+
+    "gopkg.in/natefinch/lumberjack.v2"
 )
 
 const (
@@ -118,8 +120,8 @@ func writeConfig(resp *http.Response) {
         log.Errorln("That didn't work, the server said: " + data.Error)
         createConfig()
     }
-
 }
+
 func createConfig() {
     log.Infoln("No config found! Let's create one...")
     prompt := promptui.Prompt{
@@ -149,6 +151,9 @@ func createConfig() {
     defer req.Body.Close()
 
     resp, err := client.Do(req)
+    checkErr(err)
+    defer resp.Body.Close()
+    
     checkErr(err)
     writeConfig(resp)
 }
@@ -213,16 +218,22 @@ func runUpdate() {
 
 func runDaemon() {
     logfile, err := homedir.Expand("~/.lastseen/lastseen_go.log")
-    file, err := os.OpenFile(logfile, os.O_CREATE|os.O_WRONLY, 0666)
+    //file, err := os.OpenFile(logfile, os.O_CREATE|os.O_WRONLY, 0666)
+    file := lumberjack.Logger{
+        Filename:   logfile,
+        MaxSize:    1, // megabytes
+        MaxBackups: 3,
+        MaxAge:     28,   //days
+        Compress:   false, // disabled by default
+    }
     checkErr(err)
     defer func() {
         err = file.Close()
         checkErr(err)
-
     }()
     
     if err == nil {
-        log.Out = file
+        log.Out = &file
     } else {
         log.Info("Failed to log to file, using default stderr")
     }
@@ -254,7 +265,6 @@ func runDaemon() {
             runUpdate()
         }
     }
-
 }
 
 func checkErr(err error) {
