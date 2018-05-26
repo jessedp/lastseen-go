@@ -3,8 +3,7 @@ PREFIX?=$(shell pwd)
 
 # Setup name variables for the package/tool
 NAME := lastseen-cli
-PKG := gitlab.com/jessedp/$(NAME)
-#PKG :=
+PKG := github.com/jessedp/lastseen-go
 
 # Set any default go build tags
 BUILDTAGS :=
@@ -21,10 +20,12 @@ GITUNTRACKEDCHANGES := $(shell git status --porcelain --untracked-files=no)
 ifneq ($(GITUNTRACKEDCHANGES),)
 	GITCOMMIT := $(GITCOMMIT)-dirty
 endif
+
+#CTIMEVAR=-X $(NAME)/version.GITCOMMIT=$(GITCOMMIT) -X $(NAME)/version.VERSION=$(VERSION)
 CTIMEVAR=-X $(PKG)/version.GITCOMMIT=$(GITCOMMIT) -X $(PKG)/version.VERSION=$(VERSION)
-#CTIMEVAR=-X $./version.GITCOMMIT=$(GITCOMMIT) -X ./version.VERSION=$(VERSION)
-GO_LDFLAGS=-ldflags "-w $(CTIMEVAR)"
-GO_LDFLAGS_STATIC=-ldflags "-w $(CTIMEVAR) -extldflags -static"
+#CTIMEVAR=-X version.GITCOMMIT=$(GITCOMMIT) -X version.VERSION=$(VERSION)
+GO_LDFLAGS=-ldflags="$(CTIMEVAR)"
+GO_LDFLAGS_STATIC=-ldflags="$(CTIMEVAR) -extldflags -static"
 
 # List the GOOS and GOARCH to build
 GOOSARCHES = linux/arm linux/arm64 linux/amd64 linux/386
@@ -33,6 +34,9 @@ GOOSARCHES = linux/arm linux/arm64 linux/amd64 linux/386
 # *unixTransport does not implement transport (missing SendNullByte method)
 #      freebsd/amd64 freebsd/386
 #windows/amd64 windows/386
+
+run: build
+	@go run -tags "$(BUILDTAGS)" ${GO_LDFLAGS} main.go
 
 .PHONY: build
 build: $(NAME) ## Builds a dynamic executable or package
@@ -90,7 +94,9 @@ cover: ## Runs go test with coverage
 .PHONY: install
 install: ## Installs the executable or package
 	@echo "+ $@"
-	go install -a -tags "$(BUILDTAGS)" ${GO_LDFLAGS} .
+	touch ./version/version.go
+	go install -a $(PKG)/version
+	go install ${GO_LDFLAGS} -tags "$(BUILDTAGS)" $(NAME)
 
 define buildpretty
 mkdir -p $(BUILDDIR)/$(1)/$(2);
