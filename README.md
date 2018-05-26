@@ -14,6 +14,8 @@ You'll need an account to run this, so [register](https://lastseen.me/register) 
 
 ```bash
 $ go get github.com/jessedp/lastseen-go
+$ cd to source
+$ make install
 ```
 ## Usage
 
@@ -42,15 +44,15 @@ valid arguments:
 ```
 
 ### With a GUI (gnome, most window managers, etc.)
-1. run `<path_to_bin>/lastseen-cli config`
-2. run `<path_to_bin>/lastseen-cli run` to make sure it works
-3. add `<path_to_bin>/lastseen-cli daemon` to something that runs at start up (e.g. your `.bashrc`)
-
+1. run `<path_to_bin>/lastseen-go config`
+2. run `<path_to_bin>/lastseen-go run` to make sure it works
+3. add `<path_to_bin>/lastseen-go daemon` to something that runs at start up (e.g. your `.bashrc`)
+   - for example, `(~/lastseen-cli daemon &)`
 ### Without Dbus (you're using a GUI, window manager, etc.)
-1. run `<path_to_bin>/lastseen-cli config`
-2. run `<path_to_bin>/lastseen-cli run` to make sure it works
-3. add `<path_to_bin>/lastseen-cli run` to something that runs when you create a new shell (e.g. your `.bashrc`)
-   - for example, (~/lastseen-cli daemon &)
+1. run `<path_to_bin>/lastseen-go config`
+2. run `<path_to_bin>/lastseen-go run` to make sure it works
+3. add `<path_to_bin>/lastseen-go run` to something that runs when you create a new shell (e.g. your `.bashrc`)
+
 
 __so adding this to, say, a cron job defeats the purpose__
 
