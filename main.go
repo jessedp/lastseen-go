@@ -12,9 +12,12 @@ import (
     "github.com/manifoldco/promptui"
     "github.com/sirupsen/logrus"
     "github.com/godbus/dbus"
-    "github.com/jessedp/lastseen-go/version"
+
 
     "gopkg.in/natefinch/lumberjack.v2"
+
+    "github.com/jessedp/lastseen-go/version"
+    "time"
 )
 
 const (
@@ -95,6 +98,8 @@ func main() {
 }
 
 func printUsage(err string) {
+    log.Info(version.VERSION)
+    log.Info(version.GITCOMMIT)
     fmt.Printf(BANNER, version.VERSION, version.GITCOMMIT)
     fmt.Print(SEP)
     fmt.Println(err)
@@ -261,7 +266,8 @@ func runDaemon() {
         //&{:1.23 /org/gnome/ScreenSaver org.gnome.ScreenSaver.ActiveChanged [true]}
         //fmt.Println(v)
         if v.Body[0] == true {
-            log.Info("screen unlocked, running")
+            log.Info("screen unlocked, running in 5 sec")
+            time.Sleep(time.Second * 5)
             runUpdate()
         }
     }
