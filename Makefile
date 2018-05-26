@@ -2,8 +2,8 @@
 PREFIX?=$(shell pwd)
 
 # Setup name variables for the package/tool
-NAME := lastseen-cli
-PKG := github.com/jessedp/lastseen-go
+NAME := lastseen-go
+PKG := github.com/jessedp/$(NAME)
 
 # Set any default go build tags
 BUILDTAGS :=
@@ -96,7 +96,7 @@ install: ## Installs the executable or package
 	@echo "+ $@"
 	touch ./version/version.go
 	go install -a $(PKG)/version
-	go install ${GO_LDFLAGS} -tags "$(BUILDTAGS)" $(NAME)
+	go install ${GO_LDFLAGS} -tags "$(BUILDTAGS)" $(PKG)
 
 define buildpretty
 mkdir -p $(BUILDDIR)/$(1)/$(2);
