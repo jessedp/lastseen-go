@@ -59,6 +59,7 @@ type loginReq struct {
 
 type loginResponse struct {
     Error       string `json:"error"`
+    Message     string `json:"message"`
     AccessToken string `json:"access_token"`
     TokenType   string `json:"token_type"`
     ExpiresIn   int64  `json:"expires_in"`
@@ -85,6 +86,8 @@ func main() {
         printUsage(fmt.Sprintf("%s is not a valid parameter.", theArg))
     } else {
         log.Out = os.Stdout
+        //log.SetLevel(logrus.DebugLevel)
+
         switch theArg {
         case "config":
             checkConfig(true)
@@ -109,6 +112,7 @@ func printUsage(err string) {
 
 func writeConfig(resp *http.Response) {
     dataraw, err := ioutil.ReadAll(resp.Body)
+    log.Debug("writeConfig:" + string(dataraw))
     checkErr(err)
     var data loginResponse
     err = json.Unmarshal(dataraw, &data)
@@ -122,7 +126,9 @@ func writeConfig(resp *http.Response) {
         _, err = f.Write(dataraw)
         checkErr(err)
     } else {
-        log.Errorln("That didn't work, the server said: " + data.Error)
+        var msg = fmt.Sprintf("Writing config failed: [%v] %v %v", resp.StatusCode, data.Error, data.Message)
+        log.Errorln(msg)
+        log.Errorln("raw data: " + string(dataraw[:]))
         createConfig()
     }
 }
@@ -133,12 +139,22 @@ func createConfig() {
         Label: "Email",
     }
 
+    if debug() {
+        prompt.Default = "jessedp@gmail.com"
+    }
+
     email, err := prompt.Run()
     checkErr(err)
 
     log.Infoln("We will NOT save your password")
+
     prompt = promptui.Prompt{
         Label: "Password",
+        Mask: '*',
+    }
+
+    if debug() {
+        prompt.Default = "kPUX0QGbBZFsa9CnNi9tXQrvrBA5a8kEhP5hL49uSIyCEMCvGNAD6p4eNJgeMT10Y0"
     }
 
     pass, err := prompt.Run()
@@ -148,7 +164,7 @@ func createConfig() {
     postStruct := loginReq{email, pass}
     postData, err := json.Marshal(postStruct)
     checkErr(err)
-    //fmt.Println(bytes.NewBuffer(postData))
+    log.Debug("loginReq: " + string(postData))
     req, err := http.NewRequest("POST", "https://lastseen.me/api/auth/login", bytes.NewBuffer(postData))
     checkErr(err)
     req.Header.Add("content-type", `application/json"`)
@@ -158,7 +174,7 @@ func createConfig() {
     resp, err := client.Do(req)
     checkErr(err)
     defer resp.Body.Close()
-    
+
     checkErr(err)
     writeConfig(resp)
 }
@@ -168,7 +184,15 @@ func checkConfig(create bool) (loginResponse, error) {
     checkErr(err)
 
     data, err := os.Open(cfgfile)
-    checkErr(err)
+    if err != nil {
+        if create {
+            createConfig()
+            return checkConfig(false);
+        } else {
+            log.Fatal("No config file, please create one first.")
+        }
+    }
+
     var cfg loginResponse
     err = json.NewDecoder(data).Decode(&cfg)
 
@@ -236,7 +260,7 @@ func runDaemon() {
         err = file.Close()
         checkErr(err)
     }()
-    
+
     if err == nil {
         log.Out = &file
     } else {
@@ -277,4 +301,8 @@ func checkErr(err error) {
     if err != nil {
         log.Fatal(err)
     }
+}
+
+func debug() (bool){
+    return log.Level == logrus.DebugLevel
 }
