@@ -36,7 +36,7 @@ GOOSARCHES = linux/arm linux/arm64 linux/amd64 linux/386
 #windows/amd64 windows/386
 
 run: build
-	@go run -tags "$(BUILDTAGS)" ${GO_LDFLAGS} main.go
+	@go run -tags "$(BUILDTAGS)" ${GO_LDFLAGS} main.go ${ACT}
 
 .PHONY: build
 build: $(NAME) ## Builds a dynamic executable or package
