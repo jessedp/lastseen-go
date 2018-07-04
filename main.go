@@ -105,7 +105,7 @@ func printUsage(err string) {
     fmt.Print(SEP)
     log.Error(err)
     fmt.Print(USAGE)
-    os.Exit(1)
+    os.Exit(0)
 }
 
 func writeConfig(resp *http.Response) {
