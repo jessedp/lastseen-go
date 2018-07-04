@@ -101,11 +101,9 @@ func main() {
 }
 
 func printUsage(err string) {
-    log.Info(version.VERSION)
-    log.Info(version.GITCOMMIT)
     fmt.Printf(BANNER, version.VERSION, version.GITCOMMIT)
     fmt.Print(SEP)
-    fmt.Println(err)
+    log.Error(err)
     fmt.Print(USAGE)
     os.Exit(1)
 }
@@ -203,6 +201,34 @@ func checkConfig(create bool) (loginResponse, error) {
     } else {
         if create {
             log.Info("Config appears valid! Try using 'run' to make sure it works")
+
+            prompt := promptui.Prompt{
+                Label:     "Create a new config now?",
+                IsConfirm: true,
+            }
+
+
+            var input = ""
+            for ok := true; ok; ok = (input != "y"){
+
+                fmt.Println("")
+                opt, _ := prompt.Run()
+                input = opt;
+                if input == "y" || input == "N" {
+                    if input == "y" {
+                        createConfig()
+                        return cfg, nil
+                    } else {
+                        log.Info("Bye!")
+                        return cfg, nil
+                    }
+
+                }
+
+                fmt.Println("")
+                log.Error("Invalid option - must be 'y' or 'N'")
+                continue
+            }
         }
     }
     return cfg, nil
