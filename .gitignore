@@ -1,4 +1,4 @@
-###Go###
+### Go ###
 
 # Compiled Object files, Static and Dynamic libs (Shared Objects)
 *.o
@@ -32,7 +32,7 @@ test_*.txt
 *.DS_Store
 
 
-###OSX###
+### OSX ###
 
 .DS_Store
 .AppleDouble
@@ -49,14 +49,15 @@ Icon
 .Spotlight-V100
 .Trashes
 
-lastseen-cli
-lastseen-cli-go
+# Binaries
+lastseen-go
 cross/
 
 # repo swaps
 prv-repo.sh
 pub-repo.sh
 
-# Go coverage results
+# Go ci, coverage results
+travis.log
 coverage.txt
 profile.out
