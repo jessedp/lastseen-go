@@ -47,7 +47,7 @@ valid arguments:
 1. run `<path_to_bin>/lastseen-go config`
 2. run `<path_to_bin>/lastseen-go run` to make sure it works
 3. add `<path_to_bin>/lastseen-go daemon` to something that runs at start up (e.g. your `.bashrc`)
-   - for example, `(~/lastseen-cli daemon &)`
+   - for example, `(~/lastseen-go daemon &)`
 ### Without Dbus (you're using a GUI, window manager, etc.)
 1. run `<path_to_bin>/lastseen-go config`
 2. run `<path_to_bin>/lastseen-go run` to make sure it works
