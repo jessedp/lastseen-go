@@ -1,11 +1,11 @@
 package main
 
 import (
-    "fmt"
-    "net/http"
     "os"
+    "fmt"
     "io/ioutil"
     "bytes"
+    "net/http"
     "encoding/json"
 
     "github.com/atrox/homedir"
@@ -13,11 +13,11 @@ import (
     "github.com/sirupsen/logrus"
     "github.com/godbus/dbus"
 
-
     "gopkg.in/natefinch/lumberjack.v2"
 
     "github.com/jessedp/lastseen-go/version"
     "time"
+    "flag"
 )
 
 const (
@@ -41,14 +41,12 @@ Build: %s
     // USAGE is the list of valid args available
     USAGE = `
 valid arguments:
-    config    - setup the client for use. Running this will re-run the entire login process and overwrite any previous
+    -config    - setup the client for use. Running this will re-run the entire login process and overwrite any previous
                 config.
-    run       - run the client once. This will check for an existing config file and prompt for one until it exists. 
-                Ctrl+C will get you out.
-
-    service/daemon options:
-    daemon    - once you're happy with the config, use this to launch a daemon that you don't have to worry about.
-                Not a horrible idea to use it in a startup script.
+    -run       - run the client once. This will check for an existing config file and prompt for one until it exists. 
+                 Ctrl+C will get you out.
+    -daemon    - once you're happy with the config, use this to launch a daemon that you don't have to worry about.
+                 Not a horrible idea to use it in a startup script.
 `
 )
 
@@ -70,34 +68,39 @@ type pingReq struct {
 }
 
 var log = logrus.New()
+var debug = false
 
 func main() {
-    args := os.Args[1:]
-    if len(args) != 1 {
+
+    var config bool
+    var run bool
+    var daemon bool
+
+    flag.BoolVar(&config,"config", false, "setup the client for use")
+    flag.BoolVar(&run, "run", false, "run the client once")
+    flag.BoolVar(&daemon,"daemon",false, "run the client as a daemon")
+    flag.BoolVar(&debug,"debug",false, "run the client as a daemon")
+    flag.Parse()
+
+    log.Out = os.Stdout
+    if debug {
+        log.SetLevel(logrus.DebugLevel)
+    }
+
+    if  (!config && !run && !daemon) || 
+        ( config && run ) || (run && daemon) || (config && daemon) {
+
         printUsage("Exactly 1 argument should be passed.")
-    }
-    validArgs := map[string]bool{
-        "config": true,
-        "run":    true,
-        "daemon": true,
-    }
-    theArg := args[0]
-    if !validArgs[theArg] {
-        printUsage(fmt.Sprintf("%s is not a valid parameter.", theArg))
-    } else {
-        log.Out = os.Stdout
-        //log.SetLevel(logrus.DebugLevel)
-
-        switch theArg {
-        case "config":
-            checkConfig(true)
-        case "run":
-            runUpdate()
-        case "daemon":
-            runDaemon()
-        }
+        //flag.Usage()
     }
 
+    if config {
+        checkConfig(true)
+    } else if run {
+        runUpdate()
+    } else if daemon {
+        runDaemon()
+    }
 }
 
 func printUsage(err string) {
@@ -137,8 +140,8 @@ func createConfig() {
         Label: "Email",
     }
 
-    if debug() {
-        prompt.Default = "jessedp@gmail.com"
+    if debug {
+        prompt.Default = "email"
     }
 
     email, err := prompt.Run()
@@ -151,8 +154,8 @@ func createConfig() {
         Mask: '*',
     }
 
-    if debug() {
-        prompt.Default = "kPUX0QGbBZFsa9CnNi9tXQrvrBA5a8kEhP5hL49uSIyCEMCvGNAD6p4eNJgeMT10Y0"
+    if debug {
+        prompt.Default = "pass"
     }
 
     pass, err := prompt.Run()
@@ -206,8 +209,7 @@ func checkConfig(create bool) (loginResponse, error) {
                 Label:     "Create a new config now?",
                 IsConfirm: true,
             }
-
-
+            
             var input = ""
             for ok := true; ok; ok = (input != "y"){
 
@@ -327,8 +329,4 @@ func checkErr(err error) {
     if err != nil {
         log.Fatal(err)
     }
-}
-
-func debug() (bool){
-    return log.Level == logrus.DebugLevel
 }
