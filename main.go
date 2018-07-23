@@ -1,33 +1,35 @@
 package main
 
 import (
-    "os"
-    "fmt"
-    "io/ioutil"
-    "bytes"
-    "net/http"
-    "encoding/json"
+	"flag"
+	"fmt"
+	"io/ioutil"
+	"os"
+	"time"
 
-    "github.com/atrox/homedir"
-    "github.com/manifoldco/promptui"
-    "github.com/sirupsen/logrus"
-    "github.com/godbus/dbus"
+	"bytes"
+	"encoding/json"
+	"net/http"
 
-    "gopkg.in/natefinch/lumberjack.v2"
+	"github.com/atrox/homedir"
+	"github.com/godbus/dbus"
+	"github.com/jessedp/lastseen-go/version"
+	"github.com/manifoldco/promptui"
+	"github.com/sirupsen/logrus"
+	"gopkg.in/natefinch/lumberjack.v2"
 
-    "github.com/jessedp/lastseen-go/version"
-    "time"
-    "flag"
+	"github.com/sevlyar/go-daemon"
+	"syscall"
 )
 
 const (
-    //console output stuff
+	//console output stuff
 
-    // SEP is a separator
-    SEP = "-------------------------------------------------------------------\n"
+	// SEP is a separator
+	SEP = "-------------------------------------------------------------------\n"
 
-    // BANNER is what is printed for help/info output
-    BANNER = `
+	// BANNER is what is printed for help/info output
+	BANNER = `
  __     __   ____  ____  ____  ____  ____  __ _ 
 (  )   / _\ / ___)(_  _)/ ___)(  __)(  __)(  ( \
 / (_/\/    \\___ \  )(  \___ \ ) _)  ) _) /    /
@@ -38,8 +40,8 @@ An update client for LastSeen.
 Version: %s
 Build: %s
 `
-    // USAGE is the list of valid args available
-    USAGE = `
+	// USAGE is the list of valid args available
+	USAGE = `
 valid arguments:
     -config    - setup the client for use. Running this will re-run the entire login process and overwrite any previous
                 config.
@@ -53,25 +55,25 @@ valid arguments:
 )
 
 type testInfo struct {
-    Login   loginReq `json:"login"`
-    Url     string   `json:"url"`
+	Login loginReq `json:"login"`
+	Url   string   `json:"url"`
 }
 
 type loginReq struct {
-    Email    string `json:"email"`
-    Password string `json:"password"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }
 
 type loginResponse struct {
-    Error       string `json:"error"`
-    Message     string `json:"message"`
-    AccessToken string `json:"access_token"`
-    TokenType   string `json:"token_type"`
-    ExpiresIn   int64  `json:"expires_in"`
+	Error       string `json:"error"`
+	Message     string `json:"message"`
+	AccessToken string `json:"access_token"`
+	TokenType   string `json:"token_type"`
+	ExpiresIn   int64  `json:"expires_in"`
 }
 
 type pingReq struct {
-    Token string `json:"token"`
+	Token string `json:"token"`
 }
 
 var log = logrus.New()
@@ -80,297 +82,383 @@ var testData *testInfo
 
 func main() {
 
-    var config bool
-    var run bool
-    var daemon bool
-    var testfile string
-    debug = false
-    //flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
+	debug = false
+	//flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 
-    //flag.Usage = func(){
-        //printUsage("a")
-    //}
-    flag.BoolVar(&config,"config", false, "setup the client for use")
-    flag.BoolVar(&run, "run", false, "run the client once")
-    flag.BoolVar(&daemon,"daemon",false, "run the client as a daemon")
-    flag.BoolVar(&debug,"debug",false, "turn on debugging")
-    flag.StringVar(&testfile,"test","", "file name for test data to use, automatically turns on debug")
+	//flag.Usage = func(){
+	//printUsage("a")
+	//}
+	var config = flag.Bool("config", false, "setup the client for use")
+	var run = flag.Bool("run", false, "run the client once")
+	var run_daemon = flag.Bool("daemon", false, "run the client as a daemon")
+	debug = *flag.Bool("debug", false, "turn on debugging")
+	var testfile = flag.String("test", "", "file name for test data to use, automatically turns on debug")
+	var signal = flag.String("s", "", `send signal to the daemon
+		quit — graceful shutdown
+		stop — fast shutdown
+		reload — reloading the configuration file`)
 
-    flag.Parse()
-    //print("here?")
-    //flag.Usage()
+	flag.Parse()
 
-    if testfile != "" {
-        data, err := ioutil.ReadFile(testfile)
-        checkErr(err)
-        err = json.Unmarshal(data, &testData)
-        checkErr(err)
+	daemon.AddCommand(daemon.StringFlag(signal, "quit"), syscall.SIGQUIT, termHandler)
+	daemon.AddCommand(daemon.StringFlag(signal, "stop"), syscall.SIGTERM, termHandler)
+	daemon.AddCommand(daemon.StringFlag(signal, "reload"), syscall.SIGHUP, reloadHandler)
 
-        fmt.Printf("%+v\n", testData)
+	if *testfile != "" {
+		data, err := ioutil.ReadFile(*testfile)
+		checkErr(err)
+		err = json.Unmarshal(data, &testData)
+		checkErr(err)
 
-        debug = true
-    }
+		fmt.Printf("%+v\n", testData)
 
-    // setup logging
-    log.Out = os.Stdout
-    if debug {
-        log.SetLevel(logrus.DebugLevel)
-    }
+		debug = true
+	}
+
+	// setup logging
+	log.Out = os.Stdout
+	if debug {
+		log.SetLevel(logrus.DebugLevel)
+	}
+
+	if (daemon.WasReborn() || *signal != ""){
+		*run_daemon = true
+	}
+
+	if *signal == "" &&
+		( (!*config && !*run && !*run_daemon) ||
+		(*config && *run) || (*run && *run_daemon) || (*config && *run_daemon)) {
+		//printUsage("Exactly 1 argument should be passed.")
+		if len(os.Args) < 2 {
+			log.Errorln("At least 1 argument should be passed")
+		} else {
+			log.Errorln("One of -config, -run, or -daemon must be provided")
+		}
+		flag.Usage()
+		os.Exit(0)
+	}
 
 
-
-    if  (!config && !run && !daemon) ||
-        ( config && run ) || (run && daemon) || (config && daemon) {
-        //printUsage("Exactly 1 argument should be passed.")
-        if len(os.Args) < 2 {
-            log.Errorln("At least 1 argument should be passed")
-        } else {
-            log.Errorln("One of -config, -run, or -daemon must be provided")
-        }
-        flag.Usage()
-        os.Exit(0)
-    }
-
-    if config {
-        checkConfig(true)
-    } else if run {
-        runUpdate()
-    } else if daemon {
-        runDaemon()
-    }
+	if *config {
+		checkConfig(true)
+	} else if *run {
+		runUpdate()
+	} else if *run_daemon || daemon.WasReborn() {
+		// this is necessary b/c flags are not passed when "reborn"
+		// suppose I could get around it with env/config files
+		//runDaemon()
+		runDaemon2()
+	} else {
+		log.Infoln("whoops, not running anything")
+	}
 }
 
 func printUsage(err string) {
-    fmt.Printf(BANNER, version.VERSION, version.GITCOMMIT)
-    fmt.Print(SEP)
-    log.Error(err)
-    fmt.Print(USAGE)
-    os.Exit(0)
+	fmt.Printf(BANNER, version.VERSION, version.GITCOMMIT)
+	fmt.Print(SEP)
+	log.Error(err)
+	fmt.Print(USAGE)
+	os.Exit(0)
 }
 
 func writeConfig(resp *http.Response) {
-    dataraw, err := ioutil.ReadAll(resp.Body)
-    log.Debug("writeConfig:" + string(dataraw))
-    checkErr(err)
-    var data loginResponse
-    err = json.Unmarshal(dataraw, &data)
-    checkErr(err)
-    if resp.StatusCode == 200 {
-        cfgfile, err := homedir.Expand("~/.lastseen/config")
-        checkErr(err)
-        f, err := os.Create(cfgfile)
-        checkErr(err)
-        defer f.Close()
-        _, err = f.Write(dataraw)
-        checkErr(err)
-    } else {
-        var msg = fmt.Sprintf("Writing config failed: [%v] %v %v", resp.StatusCode, data.Error, data.Message)
-        log.Errorln(msg)
-        log.Errorln("raw data: " + string(dataraw[:]))
-        createConfig()
-    }
+	dataraw, err := ioutil.ReadAll(resp.Body)
+	log.Debug("writeConfig:" + string(dataraw))
+	checkErr(err)
+	var data loginResponse
+	err = json.Unmarshal(dataraw, &data)
+	checkErr(err)
+	if resp.StatusCode == 200 {
+		cfgfile, err := homedir.Expand("~/.lastseen/config")
+		checkErr(err)
+		f, err := os.Create(cfgfile)
+		checkErr(err)
+		defer f.Close()
+		_, err = f.Write(dataraw)
+		checkErr(err)
+	} else {
+		var msg = fmt.Sprintf("Writing config failed: [%v] %v %v", resp.StatusCode, data.Error, data.Message)
+		log.Errorln(msg)
+		log.Errorln("raw data: " + string(dataraw[:]))
+		createConfig()
+	}
 }
 
 func createConfig() {
-    log.Infoln("No config found! Let's create one...")
-    prompt := promptui.Prompt{
-        Label: "Email",
-    }
+	log.Infoln("No config found! Let's create one...")
+	prompt := promptui.Prompt{
+		Label: "Email",
+	}
 
-    if testData != nil {
-        prompt.Default = testData.Login.Email
-    }
+	if testData != nil {
+		prompt.Default = testData.Login.Email
+	}
 
-    email, err := prompt.Run()
-    checkErr(err)
+	email, err := prompt.Run()
+	checkErr(err)
 
-    log.Infoln("We will NOT save your password")
+	log.Infoln("We will NOT save your password")
 
-    prompt = promptui.Prompt{
-        Label: "Password",
-        Mask: '*',
-    }
+	prompt = promptui.Prompt{
+		Label: "Password",
+		Mask:  '*',
+	}
 
-    if testData != nil {
-        prompt.Default = testData.Login.Password
-    }
+	if testData != nil {
+		prompt.Default = testData.Login.Password
+	}
 
-    pass, err := prompt.Run()
-    checkErr(err)
+	pass, err := prompt.Run()
+	checkErr(err)
 
-    client := &http.Client{}
-    postStruct := loginReq{email, pass}
-    postData, err := json.Marshal(postStruct)
-    checkErr(err)
-    log.Debug("loginReq: " + string(postData))
-    prefix := "https://lastseen.me"
-    if (testData != nil ){
-        prefix = testData.Url
-    }
-    req, err := http.NewRequest("POST", prefix + "/api/auth/login", bytes.NewBuffer(postData))
-    checkErr(err)
-    req.Header.Add("content-type", `application/json"`)
-    req.Header.Add("Accept", `application/json"`)
-    defer req.Body.Close()
+	client := &http.Client{}
+	postStruct := loginReq{email, pass}
+	postData, err := json.Marshal(postStruct)
+	checkErr(err)
+	log.Debug("loginReq: " + string(postData))
+	prefix := "https://lastseen.me"
+	if testData != nil {
+		prefix = testData.Url
+	}
+	req, err := http.NewRequest("POST", prefix+"/api/auth/login", bytes.NewBuffer(postData))
+	checkErr(err)
+	req.Header.Add("content-type", `application/json"`)
+	req.Header.Add("Accept", `application/json"`)
+	defer req.Body.Close()
 
-    resp, err := client.Do(req)
-    checkErr(err)
-    defer resp.Body.Close()
+	resp, err := client.Do(req)
+	checkErr(err)
+	defer resp.Body.Close()
 
-    checkErr(err)
-    writeConfig(resp)
+	checkErr(err)
+	writeConfig(resp)
 }
 
 func checkConfig(create bool) (loginResponse, error) {
-    cfgfile, err := homedir.Expand("~/.lastseen/config")
-    checkErr(err)
+	cfgfile, err := homedir.Expand("~/.lastseen/config")
+	checkErr(err)
 
-    data, err := os.Open(cfgfile)
-    if err != nil {
-        if create {
-            createConfig()
-            return checkConfig(false);
-        } else {
-            log.Fatal("No config file, please create one first.")
-        }
-    }
+	data, err := os.Open(cfgfile)
+	if err != nil {
+		if create {
+			createConfig()
+			return checkConfig(false)
+		} else {
+			log.Fatal("No config file, please create one first.")
+		}
+	}
 
-    var cfg loginResponse
-    err = json.NewDecoder(data).Decode(&cfg)
+	var cfg loginResponse
+	err = json.NewDecoder(data).Decode(&cfg)
 
-    if err != nil && create {
-        createConfig()
-    } else if err != nil {
-        checkErr(err)
-    } else {
-        if create {
-            log.Info("Config appears valid! Try using 'run' to make sure it works")
+	if err != nil && create {
+		createConfig()
+	} else if err != nil {
+		checkErr(err)
+	} else {
+		if create {
+			log.Info("Config appears valid! Try using 'run' to make sure it works")
 
-            prompt := promptui.Prompt{
-                Label:     "Create a new config now?",
-                IsConfirm: true,
-            }
-            
-            var input = ""
-            for ok := true; ok; ok = (input != "y"){
+			prompt := promptui.Prompt{
+				Label:     "Create a new config now?",
+				IsConfirm: true,
+			}
 
-                fmt.Println("")
-                opt, _ := prompt.Run()
-                input = opt;
-                if input == "y" || input == "N" {
-                    if input == "y" {
-                        createConfig()
-                        return cfg, nil
-                    } else {
-                        log.Info("Bye!")
-                        return cfg, nil
-                    }
+			var input = ""
+			for ok := true; ok; ok = (input != "y") {
 
-                }
+				fmt.Println("")
+				opt, _ := prompt.Run()
+				input = opt
+				if input == "y" || input == "N" {
+					if input == "y" {
+						createConfig()
+						return cfg, nil
+					} else {
+						log.Info("Bye!")
+						return cfg, nil
+					}
 
-                fmt.Println("")
-                log.Error("Invalid option - must be 'y' or 'N'")
-                continue
-            }
-        }
-    }
-    return cfg, nil
+				}
+
+				fmt.Println("")
+				log.Error("Invalid option - must be 'y' or 'N'")
+				continue
+			}
+		}
+	}
+	return cfg, nil
 }
 
 func runUpdate() {
-    cfg, err := checkConfig(false)
-    checkErr(err)
+	cfg, err := checkConfig(false)
+	checkErr(err)
 
-    log.Info("updating lastseen")
+	log.Info("updating lastseen")
 
-    client := &http.Client{}
+	client := &http.Client{}
 
-    postStruct := pingReq{cfg.AccessToken}
-    postData, err := json.Marshal(postStruct)
-    checkErr(err)
-    prefix := "https://lastseen.me"
-    if (testData != nil) {
-        prefix = testData.Url
-    }
-    req, err := http.NewRequest("POST", prefix + "/api/ping", bytes.NewBuffer(postData))
-    checkErr(err)
-    req.Header.Add("content-type", `application/json"`)
-    req.Header.Add("Accept", `application/json"`)
-    defer req.Body.Close()
+	postStruct := pingReq{cfg.AccessToken}
+	postData, err := json.Marshal(postStruct)
+	checkErr(err)
+	prefix := "https://lastseen.me"
+	if testData != nil {
+		prefix = testData.Url
+	}
+	req, err := http.NewRequest("POST", prefix+"/api/ping", bytes.NewBuffer(postData))
+	checkErr(err)
+	req.Header.Add("content-type", `application/json"`)
+	req.Header.Add("Accept", `application/json"`)
+	defer req.Body.Close()
 
-    resp, err := client.Do(req)
-    checkErr(err)
-    writeConfig(resp)
-    //let's try to send a notification
-    conn, err := dbus.SessionBus()
-    checkErr(err)
-    if err == nil {
-        obj := conn.Object("org.freedesktop.Notifications", "/org/freedesktop/Notifications")
-        call := obj.Call("org.freedesktop.Notifications.Notify", 0, "", uint32(0),
-            "", "LastSeen", "updated LastSeen!", []string{},
-            map[string]dbus.Variant{}, int32(5000))
-        if call.Err != nil {
-            panic(call.Err)
-        }
-    }
-    log.Info("updated lastseen")
+	resp, err := client.Do(req)
+	checkErr(err)
+	writeConfig(resp)
+	//let's try to send a notification
+	conn, err := dbus.SessionBus()
+	checkErr(err)
+	if err == nil {
+		obj := conn.Object("org.freedesktop.Notifications", "/org/freedesktop/Notifications")
+		call := obj.Call("org.freedesktop.Notifications.Notify", 0, "", uint32(0),
+			"", "LastSeen", "updated LastSeen!", []string{},
+			map[string]dbus.Variant{}, int32(5000))
+		if call.Err != nil {
+			panic(call.Err)
+		}
+	}
+	log.Info("updated lastseen")
 
 }
 
 func runDaemon() {
-    logfile, err := homedir.Expand("~/.lastseen/lastseen_go.log")
-    //file, err := os.OpenFile(logfile, os.O_CREATE|os.O_WRONLY, 0666)
-    file := lumberjack.Logger{
-        Filename:   logfile,
-        MaxSize:    1, // megabytes
-        MaxBackups: 3,
-        MaxAge:     28,   //days
-        Compress:   false, // disabled by default
-    }
-    checkErr(err)
-    defer func() {
-        err = file.Close()
-        checkErr(err)
-    }()
+	logfile, err := homedir.Expand("~/.lastseen/lastseen_go.log")
+	//file, err := os.OpenFile(logfile, os.O_CREATE|os.O_WRONLY, 0666)
+	file := lumberjack.Logger{
+		Filename:   logfile,
+		MaxSize:    1, // megabytes
+		MaxBackups: 3,
+		MaxAge:     28,    //days
+		Compress:   false, // disabled by default
+	}
+	checkErr(err)
+	defer func() {
+		err = file.Close()
+		checkErr(err)
+	}()
 
-    if err == nil {
-        log.Out = &file
-    } else {
-        log.Info("Failed to log to file, using default stderr")
-    }
+	if err == nil {
+		log.Out = &file
+	} else {
+		log.Info("Failed to log to file, using default stderr")
+	}
 
-    log.Info("starting daemon")
-    _, err = checkConfig(false)
-    checkErr(err)
+	log.Info("starting daemon")
+	_, err = checkConfig(false)
+	checkErr(err)
 
-    conn, err := dbus.SessionBus()
-    if err != nil {
-        log.Errorf("Failed to connect to session bus: %s", err)
-        log.Errorln("DBus Session is likely not supported without a GUI")
-        os.Exit(1)
-    }
-    runUpdate()
-    call := conn.BusObject().Call("org.freedesktop.DBus.AddMatch", 0,
-        "type='signal',interface='org.gnome.ScreenSaver'")
-    if call.Err != nil {
-        log.Errorf("Failed to add match: %s", call.Err)
-        os.Exit(1)
-    }
-    c := make(chan *dbus.Signal, 10)
-    conn.Signal(c);
-    for v := range c {
-        //&{:1.23 /org/gnome/ScreenSaver org.gnome.ScreenSaver.ActiveChanged [true]}
-        //fmt.Println(v)
-        if v.Body[0] == true {
-            log.Info("screen unlocked, running in 5 sec")
-            time.Sleep(time.Second * 5)
-            runUpdate()
-        }
-    }
+	conn, err := dbus.SessionBus()
+	if err != nil {
+		log.Errorf("Failed to connect to session bus: %s", err)
+		log.Errorln("DBus Session is likely not supported without a GUI")
+		os.Exit(1)
+	}
+	runUpdate()
+	call := conn.BusObject().Call("org.freedesktop.DBus.AddMatch", 0,
+		"type='signal',interface='org.gnome.ScreenSaver'")
+	if call.Err != nil {
+		log.Errorf("Failed to add match: %s", call.Err)
+		os.Exit(1)
+	}
+	c := make(chan *dbus.Signal, 10)
+	conn.Signal(c)
+	for v := range c {
+		//&{:1.23 /org/gnome/ScreenSaver org.gnome.ScreenSaver.ActiveChanged [true]}
+		//fmt.Println(v)
+		if v.Body[0] == true {
+			log.Info("screen unlocked, running in 5 sec")
+			time.Sleep(time.Second * 5)
+			runUpdate()
+		}
+	}
 }
 
 func checkErr(err error) {
-    if err != nil {
-        log.Fatal(err)
-    }
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func runDaemon2() {
+	logdir, err := homedir.Expand("~/.lastseen/")
+	checkErr(err)
+	cntxt := &daemon.Context{
+		PidFileName: logdir + "lastseen.pid",
+		PidFilePerm: 0644,
+		LogFileName: logdir + "/lastseen_go.log",
+		LogFilePerm: 0640,
+		WorkDir:     logdir + "/",
+		Umask:       027,
+		Args:        []string{"lastseen-go -daemon"},
+	}
+
+	if len(daemon.ActiveFlags()) > 0 {
+		d, err := cntxt.Search()
+		if err != nil {
+			log.Fatalln("Unable send signal to the daemon:", err)
+		}
+		daemon.SendCommands(d)
+		return
+	}
+
+	d, err := cntxt.Reborn()
+	if err != nil {
+		log.Fatalln(err)
+	}
+	if d != nil {
+		return
+	}
+	defer cntxt.Release()
+
+	log.Info("- - - - - - - - - - - - - - -")
+	log.Info("daemon started")
+
+	go worker()
+
+	err = daemon.ServeSignals()
+	if err != nil {
+		log.Println("Error:", err)
+	}
+	log.Println("daemon terminated")
+}
+
+var (
+	stop = make(chan struct{})
+	done = make(chan struct{})
+)
+
+func worker() {
+LOOP:
+	for {
+		time.Sleep(time.Second) // this is work to be done by worker.
+		select {
+		case <-stop:
+			break LOOP
+		default:
+		}
+	}
+	done <- struct{}{}
+}
+
+func termHandler(sig os.Signal) error {
+	log.Info("terminating...")
+	stop <- struct{}{}
+	if sig == syscall.SIGQUIT {
+		<-done
+	}
+	return daemon.ErrStop
+}
+
+func reloadHandler(sig os.Signal) error {
+	log.Info("configuration reloaded")
+	return nil
 }
