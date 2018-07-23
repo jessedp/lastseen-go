@@ -47,8 +47,15 @@ valid arguments:
                  Ctrl+C will get you out.
     -daemon    - once you're happy with the config, use this to launch a daemon that you don't have to worry about.
                  Not a horrible idea to use it in a startup script.
+    -debug     - turn on debug mode, requires
+    -test <file> - set test file to use; automatically turns on debug    
 `
 )
+
+type testInfo struct {
+    Login   loginReq `json:"login"`
+    Url     string   `json:"url"`
+}
 
 type loginReq struct {
     Email    string `json:"email"`
@@ -69,29 +76,59 @@ type pingReq struct {
 
 var log = logrus.New()
 var debug = false
+var testData *testInfo
 
 func main() {
 
     var config bool
     var run bool
     var daemon bool
+    var testfile string
+    debug = false
+    //flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 
+    //flag.Usage = func(){
+        //printUsage("a")
+    //}
     flag.BoolVar(&config,"config", false, "setup the client for use")
     flag.BoolVar(&run, "run", false, "run the client once")
     flag.BoolVar(&daemon,"daemon",false, "run the client as a daemon")
-    flag.BoolVar(&debug,"debug",false, "run the client as a daemon")
-    flag.Parse()
+    flag.BoolVar(&debug,"debug",false, "turn on debugging")
+    flag.StringVar(&testfile,"test","", "file name for test data to use, automatically turns on debug")
 
+    flag.Parse()
+    //print("here?")
+    //flag.Usage()
+
+    if testfile != "" {
+        data, err := ioutil.ReadFile(testfile)
+        checkErr(err)
+        err = json.Unmarshal(data, &testData)
+        checkErr(err)
+
+        fmt.Printf("%+v\n", testData)
+
+        debug = true
+    }
+
+    // setup logging
     log.Out = os.Stdout
     if debug {
         log.SetLevel(logrus.DebugLevel)
     }
 
-    if  (!config && !run && !daemon) || 
-        ( config && run ) || (run && daemon) || (config && daemon) {
 
-        printUsage("Exactly 1 argument should be passed.")
-        //flag.Usage()
+
+    if  (!config && !run && !daemon) ||
+        ( config && run ) || (run && daemon) || (config && daemon) {
+        //printUsage("Exactly 1 argument should be passed.")
+        if len(os.Args) < 2 {
+            log.Errorln("At least 1 argument should be passed")
+        } else {
+            log.Errorln("One of -config, -run, or -daemon must be provided")
+        }
+        flag.Usage()
+        os.Exit(0)
     }
 
     if config {
@@ -140,8 +177,8 @@ func createConfig() {
         Label: "Email",
     }
 
-    if debug {
-        prompt.Default = "email"
+    if testData != nil {
+        prompt.Default = testData.Login.Email
     }
 
     email, err := prompt.Run()
@@ -154,8 +191,8 @@ func createConfig() {
         Mask: '*',
     }
 
-    if debug {
-        prompt.Default = "pass"
+    if testData != nil {
+        prompt.Default = testData.Login.Password
     }
 
     pass, err := prompt.Run()
@@ -166,7 +203,11 @@ func createConfig() {
     postData, err := json.Marshal(postStruct)
     checkErr(err)
     log.Debug("loginReq: " + string(postData))
-    req, err := http.NewRequest("POST", "https://lastseen.me/api/auth/login", bytes.NewBuffer(postData))
+    prefix := "https://lastseen.me"
+    if (testData != nil ){
+        prefix = testData.Url
+    }
+    req, err := http.NewRequest("POST", prefix + "/api/auth/login", bytes.NewBuffer(postData))
     checkErr(err)
     req.Header.Add("content-type", `application/json"`)
     req.Header.Add("Accept", `application/json"`)
@@ -247,8 +288,11 @@ func runUpdate() {
     postStruct := pingReq{cfg.AccessToken}
     postData, err := json.Marshal(postStruct)
     checkErr(err)
-    //    fmt.Println(bytes.NewBuffer(postData))
-    req, err := http.NewRequest("POST", "https://lastseen.me/api/ping", bytes.NewBuffer(postData))
+    prefix := "https://lastseen.me"
+    if (testData != nil) {
+        prefix = testData.Url
+    }
+    req, err := http.NewRequest("POST", prefix + "/api/ping", bytes.NewBuffer(postData))
     checkErr(err)
     req.Header.Add("content-type", `application/json"`)
     req.Header.Add("Accept", `application/json"`)
