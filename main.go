@@ -16,9 +16,8 @@ import (
 	"github.com/jessedp/lastseen-go/version"
 	"github.com/manifoldco/promptui"
 	"github.com/sirupsen/logrus"
-	"gopkg.in/natefinch/lumberjack.v2"
-
 	"github.com/sevlyar/go-daemon"
+	//"gopkg.in/natefinch/lumberjack.v2"
 	"syscall"
 )
 
@@ -146,8 +145,7 @@ func main() {
 	} else if *run_daemon || daemon.WasReborn() {
 		// this is necessary b/c flags are not passed when "reborn"
 		// suppose I could get around it with env/config files
-		//runDaemon()
-		runDaemon2()
+		runDaemon()
 	} else {
 		log.Infoln("whoops, not running anything")
 	}
@@ -294,8 +292,6 @@ func runUpdate() {
 	cfg, err := checkConfig(false)
 	checkErr(err)
 
-	log.Info("updating lastseen")
-
 	client := &http.Client{}
 
 	postStruct := pingReq{cfg.AccessToken}
@@ -330,9 +326,17 @@ func runUpdate() {
 
 }
 
+func checkErr(err error) {
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
 func runDaemon() {
-	logfile, err := homedir.Expand("~/.lastseen/lastseen_go.log")
-	//file, err := os.OpenFile(logfile, os.O_CREATE|os.O_WRONLY, 0666)
+
+	_, err := checkConfig(false)
+	checkErr(err)
+	/** original log config if I can get it into go-daemon
 	file := lumberjack.Logger{
 		Filename:   logfile,
 		MaxSize:    1, // megabytes
@@ -351,44 +355,8 @@ func runDaemon() {
 	} else {
 		log.Info("Failed to log to file, using default stderr")
 	}
-
-	log.Info("starting daemon")
-	_, err = checkConfig(false)
-	checkErr(err)
-
-	conn, err := dbus.SessionBus()
-	if err != nil {
-		log.Errorf("Failed to connect to session bus: %s", err)
-		log.Errorln("DBus Session is likely not supported without a GUI")
-		os.Exit(1)
-	}
-	runUpdate()
-	call := conn.BusObject().Call("org.freedesktop.DBus.AddMatch", 0,
-		"type='signal',interface='org.gnome.ScreenSaver'")
-	if call.Err != nil {
-		log.Errorf("Failed to add match: %s", call.Err)
-		os.Exit(1)
-	}
-	c := make(chan *dbus.Signal, 10)
-	conn.Signal(c)
-	for v := range c {
-		//&{:1.23 /org/gnome/ScreenSaver org.gnome.ScreenSaver.ActiveChanged [true]}
-		//fmt.Println(v)
-		if v.Body[0] == true {
-			log.Info("screen unlocked, running in 5 sec")
-			time.Sleep(time.Second * 5)
-			runUpdate()
-		}
-	}
-}
-
-func checkErr(err error) {
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-func runDaemon2() {
+	*/
+	
 	logdir, err := homedir.Expand("~/.lastseen/")
 	checkErr(err)
 	cntxt := &daemon.Context{
@@ -437,14 +405,46 @@ var (
 )
 
 func worker() {
+	conn, err := dbus.SessionBus()
+	if err != nil {
+		log.Errorf("Failed to connect to session bus: %s", err)
+		log.Errorln("DBus Session is likely not supported without a GUI")
+		os.Exit(1)
+	}
+	runUpdate()
+	call := conn.BusObject().Call("org.freedesktop.DBus.AddMatch", 0,
+		"type='signal',interface='org.gnome.ScreenSaver'")
+	if call.Err != nil {
+		log.Errorf("Failed to add match: %s", call.Err)
+		os.Exit(1)
+	}
+	c := make(chan *dbus.Signal, 10)
+	conn.Signal(c)
+	log.Info("Listening to Dbus")
+
 LOOP:
 	for {
 		time.Sleep(time.Second) // this is work to be done by worker.
 		select {
+		case <-c:
+			for v := range c {
+				//&{:1.23 /org/gnome/ScreenSaver org.gnome.ScreenSaver.ActiveChanged [true]}
+				//fmt.Println(v)
+				if v.Body[0] == false{
+					log.Info("screen unlocked, updating in 10 sec")
+					time.Sleep(time.Second * 10)
+					runUpdate()
+				}
+				break
+			}
 		case <-stop:
+			log.Info("Disconnecting from Dbus")
+			conn.Close()
+			conn = nil
 			break LOOP
 		default:
 		}
+
 	}
 	done <- struct{}{}
 }
