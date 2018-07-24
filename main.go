@@ -55,7 +55,7 @@ valid arguments:
 
 type testInfo struct {
 	Login loginReq `json:"login"`
-	Url   string   `json:"url"`
+	URL   string   `json:"url"`
 }
 
 type loginReq struct {
@@ -100,12 +100,12 @@ func main() {
 	flag.Parse()
 
 	/** setup daemon setup things **/
-	var run_daemon = false
+	var daemonize = false
 	if signal != "" {
 		switch signal{
 		case
 			"start", "stop","quit","reload":
-				run_daemon = true
+				daemonize = true
 				daemon.AddCommand(daemon.StringFlag(&signal, "quit"), syscall.SIGQUIT, termHandler)
 				daemon.AddCommand(daemon.StringFlag(&signal, "stop"), syscall.SIGTERM, termHandler)
 				daemon.AddCommand(daemon.StringFlag(&signal, "reload"), syscall.SIGHUP, reloadHandler)
@@ -117,7 +117,7 @@ func main() {
 
 	}
 	if (daemon.WasReborn()) {
-		run_daemon = true
+		daemonize = true
 	}
 
 
@@ -138,8 +138,8 @@ func main() {
 
 
 	if 
-		( (!config && !run && !run_daemon) ||
-		(config && run) || (run && run_daemon) || (config && run_daemon)) {
+		( (!config && !run && !daemonize) ||
+		(config && run) || (run && daemonize) || (config && daemonize)) {
 		//printUsage("Exactly 1 argument should be passed.")
 		if len(os.Args) < 2 {
 			log.Errorln("At least 1 argument should be passed")
@@ -154,7 +154,7 @@ func main() {
 		checkConfig(true)
 	} else if run {
 		runUpdate()
-	} else if run_daemon {
+	} else if daemonize {
 		// this is necessary b/c flags are not passed when "reborn"
 		// suppose I could get around it with env/config files
 		runDaemon()
@@ -230,7 +230,7 @@ func createConfig() {
 	log.Debug("loginReq: " + string(postData))
 	prefix := "https://lastseen.me"
 	if testData != nil {
-		prefix = testData.Url
+		prefix = testData.URL
 	}
 	req, err := http.NewRequest("POST", prefix+"/api/auth/login", bytes.NewBuffer(postData))
 	checkErr(err)
@@ -247,27 +247,27 @@ func createConfig() {
 }
 
 func checkConfig(create bool) (loginResponse, error) {
+	var cfg loginResponse
 	cfgfile, err := homedir.Expand("~/.lastseen/config")
 	checkErr(err)
 
 	data, err := os.Open(cfgfile)
 	if err != nil {
+		
 		if create {
 			createConfig()
-			return checkConfig(false)
 		} else {
 			log.Fatal("No config file, please create one first.")
 		}
 	}
 
-	var cfg loginResponse
+
 	err = json.NewDecoder(data).Decode(&cfg)
 
 	if err != nil && create {
 		createConfig()
-	} else if err != nil {
-		checkErr(err)
 	} else {
+		checkErr(err)
 		if create {
 			log.Info("Config appears valid! Try using 'run' to make sure it works")
 
@@ -285,17 +285,14 @@ func checkConfig(create bool) (loginResponse, error) {
 				if input == "y" || input == "N" {
 					if input == "y" {
 						createConfig()
-						return cfg, nil
 					} else {
 						log.Info("Bye!")
-						return cfg, nil
 					}
-
+					break
+				} else {
+					log.Error("\nInvalid option - must be 'y' or 'N'")
+					continue
 				}
-
-				fmt.Println("")
-				log.Error("Invalid option - must be 'y' or 'N'")
-				continue
 			}
 		}
 	}
@@ -313,7 +310,7 @@ func runUpdate() {
 	checkErr(err)
 	prefix := "https://lastseen.me"
 	if testData != nil {
-		prefix = testData.Url
+		prefix = testData.URL
 	}
 	req, err := http.NewRequest("POST", prefix+"/api/ping", bytes.NewBuffer(postData))
 	checkErr(err)
