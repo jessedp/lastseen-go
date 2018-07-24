@@ -1,14 +1,20 @@
 ## About lastseen-go
 [![Build Status](https://api.travis-ci.org/jessedp/lastseen-go.svg?branch=master)](https://travis-ci.org/jessedp/lastseen-go)
 
-A client written in go for [lastseen.me](https://lastseen.me)
+A client written in go for [lastseen.me](https://lastseen.me). 
+Currently it only runs on the architectures below
 
 You'll need an account to run this, so [register](https://lastseen.me/register) - be sure to note the email/password used
 
 ## Installation
 
 #### Binaries
-- **linux** [386](https://github.com/jessedp/lastseen-go/releases/download/v0.1.2/lastseen-cli-linux-386) / [amd64](https://github.com/jessedp/lastseen-go/releases/download/v0.1.2/lastseen-cli-linux-amd64) / [arm](https://github.com/jessedp/lastseen-go/releases/download/v0.1.2/lastseen-cli-linux-arm) / [arm64](https://github.com/jessedp/lastseen-go/releases/download/v0.1.2/lastseen-cli-linux-arm64)
+**linux** [386](https://github.com/jessedp/lastseen-go/releases/latest/lastseen-cli-linux-386) / 
+[amd64](https://github.com/jessedp/lastseen-go/releases/download/latest/lastseen-cli-linux-amd64) / 
+[arm](https://github.com/jessedp/lastseen-go/releases/download/latest/lastseen-cli-linux-arm) / 
+[arm64](https://github.com/jessedp/lastseen-go/releases/download/latest/lastseen-cli-linux-arm64)
+
+Download the proper one for your system and put it somewhere in your PATH
 
 #### Via Go
 
@@ -20,43 +26,42 @@ $ make install
 ## Usage
 
 ```conosle
- __     __   ____  ____  ____  ____  ____  __ _
-(  )   / _\ / ___)(_  _)/ ___)(  __)(  __)(  ( \
-/ (_/\/    \\___ \  )(  \___ \ ) _)  ) _) /    /
-\____/\_/\_/(____/ (__) (____/(____)(____)\_)__)
-
-An update client for LastSeen.
-
--------------------------------------------------------------------
-Exactly 1 argument should be passed.
-
-valid arguments:
-    config    - setup the client for use. Running this will re-run the entire login process and overwrite any
-                previous config.
-    run       - run the client once. This will check for an existing config file and prompt for one until it
-                exists.
-                Ctrl+C will get you out.
-
-    service/daemon options:
-    daemon    - once you're happy with the config, use this to launch a daemon that you don't have to worry
-                about.
-                Not a horrible idea to use it in a startup script.
+Usage of ./lastseen-go:
+  -config
+    	setup the client for use
+  -daemon string
+    	send signal to the daemon to:
+    			start — run/watch in background (runs update on startup)		
+    			quit — graceful shutdown
+    			stop — fast shutdown
+    			reload — reloading the configuration file
+  -debug
+    	turn on debugging
+  -run
+    	run the client once
 ```
+Make it easy on your self and place the binary in your PATH, otherwise
+be sure to use the full path to it.
+##### Configuring
+1. run `lastseen-go -config`
+2. run `lastseen-go -run` to make sure it works
 
-### With a GUI (gnome, most window managers, etc.)
-1. run `<path_to_bin>/lastseen-go config`
-2. run `<path_to_bin>/lastseen-go run` to make sure it works
-3. add `<path_to_bin>/lastseen-go daemon` to something that runs at start up (e.g. your `.bashrc`)
-   - for example, `(~/lastseen-go daemon &)`
-### Without Dbus (you're using a GUI, window manager, etc.)
-1. run `<path_to_bin>/lastseen-go config`
-2. run `<path_to_bin>/lastseen-go run` to make sure it works
-3. add `<path_to_bin>/lastseen-go run` to something that runs when you create a new shell (e.g. your `.bashrc`)
+##### Set it and leave it
+Add `<path_to_bin>/lastseen-go -daemon start` to something that runs 
+at start-up (e.g. your `.bashrc`)
+
+- each time it runs it immediately updates the site
+- if you have DBus, every time the screen is unlocked, it will
+    update the site
+
+__needless to this to say, running this via a cron job defeats the purpose__
+
+### Todos
+
+- get it to compile without dbus
+- see about consistent logging format in the daemon
+- swap out `flag` package for something else (docopt, go-flags?)  
 
 
-__so adding this to, say, a cron job defeats the purpose__
-
-
-# Thanks to...
+### Thanks to...
  - a plethora of scripts from https://github.com/jessfraz
-
