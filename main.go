@@ -322,7 +322,16 @@ func runUpdate() {
 	defer req.Body.Close()
 
 	resp, err := client.Do(req)
-	checkErr(err)
+	if ( err != nil) {
+		log.Error("FATAL: %s", err)
+		log.Info("no?")
+	} else if resp.StatusCode != 200 {
+		body, _ := ioutil.ReadAll(resp.Body)
+		log.Error(fmt.Printf("HTTP Status %d : %s", resp.StatusCode, body) )
+		log.Error(err)
+		return
+	}
+	
 	writeConfig(resp)
 	//let's try to send a notification
 	conn, err := dbus.SessionBus()
