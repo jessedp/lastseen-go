@@ -320,11 +320,10 @@ func runUpdate() {
 
 	resp, err := client.Do(req)
 	if ( err != nil) {
-		log.Error("FATAL: %s", err)
+		log.Fatalf("FATAL: %s", err)
 	} else if resp.StatusCode != 200 {
 		body, _ := ioutil.ReadAll(resp.Body)
-		log.Error(fmt.Printf("HTTP Status %d : %s", resp.StatusCode, body) )
-		log.Error(err)
+		log.Errorf("HTTP Status %d : %s", resp.StatusCode, body )
 		return
 	}
 	
