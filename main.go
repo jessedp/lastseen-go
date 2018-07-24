@@ -2,23 +2,23 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"time"
 
-	"bytes"
 	"encoding/json"
-	"net/http"
-
 	"github.com/atrox/homedir"
 	"github.com/godbus/dbus"
-	"github.com/jessedp/lastseen-go/version"
-	"github.com/manifoldco/promptui"
 	"github.com/sirupsen/logrus"
 	"github.com/sevlyar/go-daemon"
-	//"gopkg.in/natefinch/lumberjack.v2"
+    "github.com/jessedp/lastseen-go/version"
+
+//"gopkg.in/natefinch/lumberjack.v2"
 	"syscall"
+	"fmt"
+	"net/http"
+	"github.com/manifoldco/promptui"
+	"bytes"
 )
 
 const (
@@ -82,51 +82,64 @@ var testData *testInfo
 func main() {
 
 	debug = false
-	//flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 
-	//flag.Usage = func(){
-	//printUsage("a")
-	//}
-	var config = flag.Bool("config", false, "setup the client for use")
-	var run = flag.Bool("run", false, "run the client once")
-	var run_daemon = flag.Bool("daemon", false, "run the client as a daemon")
-	debug = *flag.Bool("debug", false, "turn on debugging")
-	var testfile = flag.String("test", "", "file name for test data to use, automatically turns on debug")
-	var signal = flag.String("s", "", `send signal to the daemon
+	var config bool
+	var run bool
+	var signal string
+	var testfile string
+
+	flag.BoolVar(&config, "config", false, "setup the client for use")
+	flag.BoolVar(&run,"run", false, "run the client once")
+	flag.BoolVar(&debug, "debug", false, "turn on debugging")
+	flag.StringVar(&testfile, "testfile", "", "file name for test data to use, automatically turns on debug")
+	flag.StringVar(&signal,"daemon", "", `send signal to the daemon to:
+		start — run/watch in background (runs update on startup)		
 		quit — graceful shutdown
 		stop — fast shutdown
 		reload — reloading the configuration file`)
-
 	flag.Parse()
 
-	daemon.AddCommand(daemon.StringFlag(signal, "quit"), syscall.SIGQUIT, termHandler)
-	daemon.AddCommand(daemon.StringFlag(signal, "stop"), syscall.SIGTERM, termHandler)
-	daemon.AddCommand(daemon.StringFlag(signal, "reload"), syscall.SIGHUP, reloadHandler)
+	/** setup daemon setup things **/
+	var run_daemon = false
+	if signal != "" {
+		switch signal{
+		case
+			"start", "stop","quit","reload":
+				run_daemon = true
+				daemon.AddCommand(daemon.StringFlag(&signal, "quit"), syscall.SIGQUIT, termHandler)
+				daemon.AddCommand(daemon.StringFlag(&signal, "stop"), syscall.SIGTERM, termHandler)
+				daemon.AddCommand(daemon.StringFlag(&signal, "reload"), syscall.SIGHUP, reloadHandler)
+		default:
+			log.Errorf("'%s' is not a valid option for -daemon", signal)
+			flag.Usage()
+			os.Exit(0)
+		}
 
-	if *testfile != "" {
-		data, err := ioutil.ReadFile(*testfile)
+	}
+	if (daemon.WasReborn()) {
+		run_daemon = true
+	}
+
+
+	/** test file checks **/
+	if testfile != "" {
+		data, err := ioutil.ReadFile(testfile)
 		checkErr(err)
 		err = json.Unmarshal(data, &testData)
 		checkErr(err)
-
-		fmt.Printf("%+v\n", testData)
-
 		debug = true
 	}
 
-	// setup logging
+	/** setup logging **/
 	log.Out = os.Stdout
 	if debug {
 		log.SetLevel(logrus.DebugLevel)
 	}
 
-	if (daemon.WasReborn() || *signal != ""){
-		*run_daemon = true
-	}
 
-	if *signal == "" &&
-		( (!*config && !*run && !*run_daemon) ||
-		(*config && *run) || (*run && *run_daemon) || (*config && *run_daemon)) {
+	if 
+		( (!config && !run && !run_daemon) ||
+		(config && run) || (run && run_daemon) || (config && run_daemon)) {
 		//printUsage("Exactly 1 argument should be passed.")
 		if len(os.Args) < 2 {
 			log.Errorln("At least 1 argument should be passed")
@@ -137,19 +150,20 @@ func main() {
 		os.Exit(0)
 	}
 
-
-	if *config {
+	if config {
 		checkConfig(true)
-	} else if *run {
+	} else if run {
 		runUpdate()
-	} else if *run_daemon || daemon.WasReborn() {
+	} else if run_daemon {
 		// this is necessary b/c flags are not passed when "reborn"
 		// suppose I could get around it with env/config files
 		runDaemon()
 	} else {
 		log.Infoln("whoops, not running anything")
 	}
+
 }
+
 
 func printUsage(err string) {
 	fmt.Printf(BANNER, version.VERSION, version.GITCOMMIT)
@@ -360,7 +374,7 @@ func runDaemon() {
 	logdir, err := homedir.Expand("~/.lastseen/")
 	checkErr(err)
 	cntxt := &daemon.Context{
-		PidFileName: logdir + "lastseen.pid",
+		PidFileName: logdir + "/lastseen.pid",
 		PidFilePerm: 0644,
 		LogFileName: logdir + "/lastseen_go.log",
 		LogFilePerm: 0640,
@@ -377,6 +391,8 @@ func runDaemon() {
 		daemon.SendCommands(d)
 		return
 	}
+	/** do this if we're trying to start the daemon **/
+	runUpdate()
 
 	d, err := cntxt.Reborn()
 	if err != nil {
