@@ -12,7 +12,6 @@ import (
 	"github.com/jessedp/lastseen-go/version"
 	"github.com/sevlyar/go-daemon"
 	"github.com/sirupsen/logrus"
-
 	//"gopkg.in/natefinch/lumberjack.v2"
 	"bytes"
 	"fmt"
@@ -316,26 +315,26 @@ func runUpdate() {
 
 	defer req.Body.Close()
 
-	msg_body := "updated LastSeen!"
+	msgBody := "updated LastSeen!"
 	fail := false
 	resp, err := client.Do(req)
 
 	if err != nil {
 		fail = true
 		log.Errorf("ERROR: %s", err)
-		msg_body = fmt.Sprintf("Not updated, check the logs (%s)", err)
+		msgBody = fmt.Sprintf("Not updated, check the logs (%s)", err)
 	} else if resp.StatusCode != 200 {
 		fail = true
 		body, _ := ioutil.ReadAll(resp.Body)
 		log.Errorf("HTTP Status %d : %s", resp.StatusCode, body)
-		msg_body = fmt.Sprintf("Not updated, check the logs (%s)", err)
+		msgBody = fmt.Sprintf("Not updated, check the logs (%s)", err)
 	}
 
 	if fail {
 		notify(fmt.Sprintf("Not updated, check the logs (%s)", err), "error")
 	} else {
 		writeConfig(resp)
-		notify(msg_body, "")
+		notify(msgBody, "")
 		log.Info("updated lastseen")
 	}
 }
@@ -348,10 +347,10 @@ func notify(body string, icon string) {
 		//See:
 		//  https://developer.gnome.org/notification-spec/#command-notify
 
-		app_name := ""
-		replaces_id := uint32(0)
+		appName := ""
+		replacesID := uint32(0)
 		// gnome icon file names - /usr/share/icons/gnome/24x24/actions/
-		app_icon := icon
+		appIcon := icon
 		summary := "LastSeen"
 		body := body
 		actions := []string{}
@@ -359,8 +358,8 @@ func notify(body string, icon string) {
 		timeout := int32(5000)
 
 		obj := conn.Object("org.freedesktop.Notifications", "/org/freedesktop/Notifications")
-		call := obj.Call("org.freedesktop.Notifications.Notify", 0, app_name, replaces_id,
-			app_icon, summary, body, actions, hints, timeout)
+		call := obj.Call("org.freedesktop.Notifications.Notify", 0, appName, replacesID,
+			appIcon, summary, body, actions, hints, timeout)
 		if call.Err != nil {
 			panic(call.Err)
 		}
