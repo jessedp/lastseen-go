@@ -18,7 +18,7 @@
     - go get github.com/sirupsen/logrus
     - go get github.com/godbus/dbus
     - go get github.com/jessedp/lastseen-go/version
-    - go get github.com/golang/lint/golint
+    - go get golang.org/x/lint/golin
     - go get honnef.co/go/tools/cmd/staticcheck
     - go get gopkg.in/yaml.v1
     - go get gopkg.in/natefinch/lumberjack.v2
